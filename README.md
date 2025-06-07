@@ -1,7 +1,7 @@
 # scMerlin
 
-## v2.5.30
-### Updated on 2025-May-18
+## v2.5.31
+### Updated on 2025-June-07
 
 ## About
 scMerlin allows you to easily control the most common services/scripts on your router. scMerlin also augments your router's WebUI with a Sitemap and dynamic submenus for the main left menu of Asuswrt-Merlin.

@@ -12,9 +12,9 @@
 ## Forked from: https://github.com/jackyaz/scMerlin ##
 ##                                                  ##
 ######################################################
-# Last Modified: 2025-May-18
+# Last Modified: 2025-May-23
 #-----------------------------------------------------
-## Modification by thelonelycoder [2025-May-18] ##
+## Modification by thelonelycoder [2025-May-23] ##
 # Changed repo paths to OSR, added OSR repo to headers, increased version. 
 
 ##########       Shellcheck directives     ###########
@@ -30,8 +30,8 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="scMerlin"
 readonly SCRIPT_NAME_LOWER="$(echo "$SCRIPT_NAME" | tr 'A-Z' 'a-z' | sed 's/d//')"
-readonly SCM_VERSION="v2.5.30"
-readonly SCRIPT_VERSION="v2.5.30"
+readonly SCM_VERSION="v2.5.31"
+readonly SCRIPT_VERSION="v2.5.31"
 SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME_LOWER.d"
@@ -665,28 +665,31 @@ function GenerateSiteMap(showurls)
     );
   }
   (function watchForSetup(){
-    if (location.pathname.endsWith('index.asp')) {
-      if (!window.menuList || !window.menuExclude) {
-        const { menuList, menuExclude } = readCache();
-        if (menuList && menuExclude) {
-          window.menuList    = menuList;
-          window.menuExclude = menuExclude;
-        } else {
-          return setTimeout(watchForSetup, 200);
-        }
+    // On index.asp or login.asp, *always* refresh the cache
+    if (/(index|login)\.asp$/.test(location.pathname)) {
+      // If the page has already populated its menus, write them straight to cache
+      if (Array.isArray(window.menuList) && window.menuExclude) {
+        writeCache(window.menuList, window.menuExclude);
       }
+      // Now wait until the site has finished loading its own menus...
+      if (!window.menuList || !window.menuExclude) {
+        return setTimeout(watchForSetup, 200);
+      }
+      // And once load fires, build & inject
       window.addEventListener('load', () => {
         buildMyMenu();
         injectDropdowns();
       });
       return;
     }
+    // On any other page, use cache if menus aren't on window yet
     if (
       Array.isArray(window.menuList) && window.menuList.length &&
       window.menuExclude &&
       Array.isArray(window.menuExclude.tabs) &&
       Array.isArray(window.menuExclude.menus)
     ) {
+      // First time on a non-index page: save into cache for next index/login
       if (!readCache().menuList) {
         writeCache(window.menuList, window.menuExclude);
       }
@@ -715,7 +718,6 @@ function GenerateSiteMap(showurls)
         tabs:     (m.tab||[])
                     .filter(t => !exclude.tabs.includes(t.url))
                     .filter(t => !(t.tabName==='__INHERIT__' && t.url==='NULL'))
-                    .filter(t => !(t.tabName==='__HIDE__'   && t.url==='NULL'))
                     .filter(t => t.tabName!=='__HIDE__')
       }))
       .filter(m => m.tabs.length > 0);
@@ -799,6 +801,19 @@ Upgrade_StateJS()
         sed -i '/^var myMenu = \[\];$/,/^AddDropdowns();$/d' "$TMP_STATE_JS"
 
         # Append new 3006 code #
+        AppendTo_statejs_3006_ >> "$TMP_STATE_JS"
+
+        mount -o bind /tmp/state.js /www/state.js
+
+    elif [ "$fwInstalledBaseVers" = "3006" ] && \
+       ! grep -q 'write them straight to cache' "$TMP_STATE_JS"
+    then
+        umount /www/state.js 2>/dev/null
+
+        # Remove old block starting at GenerateSiteMap() through EOF
+        sed -i '/^function GenerateSiteMap(showurls)/,$d' "$TMP_STATE_JS"
+
+        # Reinject the 3006 specific code
         AppendTo_statejs_3006_ >> "$TMP_STATE_JS"
 
         mount -o bind /tmp/state.js /www/state.js
